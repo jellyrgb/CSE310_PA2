@@ -38,7 +38,8 @@ class Client:
         Waits for userinput and then process it
         '''
         # Send initial join message
-        join_msg = util.make_packet(msg_type="join", seqno=0, msg=self.name)
+        msg = util.make_message("join", 1, self.name)
+        join_msg = util.make_packet(msg_type="join", msg=msg)
 
         self.sock.sendto(join_msg.encode(), (self.server_addr, self.server_port))
 
@@ -63,7 +64,7 @@ class Client:
         """
         parts = cmd.split(' ', 3)
         if len(parts) < 4:
-            print("Incorrect user input format.")
+            print("Incorrect user input format")
             return
 
         try:
@@ -71,7 +72,7 @@ class Client:
             recipient_names = parts[2].split(' ')[:num_recipients]
             message = parts[3]
         except ValueError:
-            print("Invalid number of recipients.")
+            print("Invalid number of recipients")
             return
 
         # Creating a message format that the server can interpret
@@ -88,7 +89,7 @@ class Client:
         Sends a request to the server to retrieve a list of all connected users.
         """
         # Create the message requesting the user list
-        msg = util.make_message("request_users_list", 2)
+        msg = util.make_message("request_users_list", 3, "")
         packet = util.make_packet(msg_type="request_users_list", msg=msg)
 
         # Send the formatted packet to the server
@@ -102,7 +103,7 @@ class Client:
         try:
             # Create the message to notify the server of disconnection
             msg = util.make_message("disconnect", 1, self.name)
-            packet = util.make_packet(msg_type="data", msg=msg)
+            packet = util.make_packet(msg_type="disconnect", msg=msg)
 
             # Send the disconnect packet to the server
             self.sock.sendto(packet.encode(), (self.server_addr, self.server_port))
@@ -121,12 +122,20 @@ class Client:
         while self.running:
             try:
                 data, _ = self.sock.recvfrom(1024)
+
                 if data:
                     message = data.decode()
-                    print(message)
 
                     message = message.split('|')
                     new_message = message[2].split(' ')
+
+                    if new_message[0] == "response_users_list":
+                        user_list = ' '.join(new_message[3:])
+                        print("list: " + user_list)
+
+                    elif new_message[0] == "forward_message":
+                        msg = ' '.join(new_message[4:])
+                        print("msg: " + new_message[3] + ": " + msg)
 
             except socket.error as e:
                 if self.running:  # Only show errors if we're still supposed to be running

@@ -26,13 +26,10 @@ class Server:
         continue receiving messages from Clients and processing it.
 
         '''
-        print("Server started")
+        
         while True:
             data, addr = self.sock.recvfrom(1024)
             msg_type, seqno, data, checksum = util.parse_packet(data.decode())
-
-            # if not util.validate_checksum(data):
-            #     continue
 
             if msg_type == "join":
                 self.handle_join(data, addr)
@@ -45,8 +42,9 @@ class Server:
             else:
                 print(f"Unknown command from {addr}")
         
+
     def handle_join(self, data, addr):
-        username = data
+        username = data.split(' ')[2]
         
         if username in self.clients:
             self.send_error_message("ERR_USERNAME_UNAVAILABLE", addr)
@@ -55,6 +53,7 @@ class Server:
         else:
             self.clients[username] = addr
             print(f"join: {username}")
+
 
     def send_error_message(self, error, addr):
         if error == "ERR_USERNAME_UNAVAILABLE":
@@ -68,11 +67,8 @@ class Server:
         self.sock.sendto(packet.encode(), addr)
         print(f"Sent error to {addr}: {error_msg}")
 
+
     def handle_list_users(self, addr):
-        """
-        Handles a request from a client to list all users currently connected to the server.
-        :param addr: Address tuple of the requesting client (IP, port)
-        """
         # Retrieve the username associated with the client's address, if it exists
         requesting_username = next((user for user, address in self.clients.items() if address == addr), None)
 
@@ -80,7 +76,7 @@ class Server:
         if requesting_username:
             # Generate the list of usernames
             user_list = " ".join(sorted(self.clients.keys()))
-            message = f"list: {user_list}"
+            message = f"{len(self.clients)} {user_list}"
             
             # Format the message to be sent back
             msg = util.make_message("response_users_list", 3, message)
@@ -95,12 +91,6 @@ class Server:
             self.send_error_message("ERR_INVALID_CLIENT", addr)
 
     def handle_send_message(self, data, addr):
-        """
-        Handles messages sent from one client intended for one or more other clients.
-        :param data: The message data received from the client, expected to be in the format
-                    "send_message num_users user1 user2 ... message"
-        :param addr: Address tuple of the sender (IP, port)
-        """
         # Extract sender username based on the client's address
         sender_username = next((user for user, address in self.clients.items() if address == addr), None)
 
@@ -111,7 +101,6 @@ class Server:
         # Parse the data to extract the number of recipients, recipient usernames, and the actual message
         parts = data.split(' ')  # This should be adjusted based on actual expected data format
 
-        print("splitted parts: " + str(parts))
         if len(parts) < 4:
             self.send_error_message("ERR_INVALID_FORMAT", addr)
             return
@@ -122,19 +111,17 @@ class Server:
 
         # Forward the message to each specified recipient
         for recipient in recipient_names:
-            print("Recipient: " + recipient)
             if recipient in self.clients:
                 recipient_addr = self.clients[recipient]
-                forward_msg = f"msg: {sender_username}: {message}"
-                packet = util.make_packet(msg_type="data", msg=forward_msg)
+
+                num = 1
+                msg_body = f"{num} {sender_username} {message}"
+                forward_msg = util.make_message("forward_message", 4, msg_body)
+                packet = util.make_packet(msg_type="forward_message", msg=forward_msg)
                 self.sock.sendto(packet.encode(), recipient_addr)
-                print(f"Message from {sender_username} forwarded to {recipient}")
+                print(f"msg: {sender_username}")
             else:
-                print(f"Message from {sender_username} to non-existent user {recipient}")
-                # Optionally notify the sender about the non-existent user
-                error_msg = f"msg: {sender_username} to non-existent user {recipient}"
-                packet = util.make_packet(msg_type="data", msg=error_msg)
-                self.sock.sendto(packet.encode(), addr)
+                print(f"msg: {sender_username} to non-existent user {recipient}")
 
     def handle_disconnect(self, addr):
         """
@@ -153,13 +140,7 @@ class Server:
             del self.clients[username_to_remove]
             # Log the disconnection
             print(f"disconnected: {username_to_remove}")
-            # Optionally, you could also send a confirmation to the client (not typically necessary for a disconnect)
-            # confirmation_msg = f"disconnected: {username_to_remove}"
-            # packet = util.make_packet(msg_type="data", msg=confirmation_msg)
-            # self.sock.sendto(packet.encode(), addr)
         else:
-            # In case no matching client was found (should not happen normally), log or handle the error
-            print(f"Failed to find a matching client for disconnection at {addr}")
             self.send_error_message("ERR_INVALID_CLIENT", addr) 
 
 # Do not change below part of code

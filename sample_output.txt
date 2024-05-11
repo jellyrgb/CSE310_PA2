@@ -8,8 +8,6 @@ Start server and clients using following commands:
     python3 server_1.py -p 9000
     python3 client_1.py -p 9000 -u client1
     python3 client_1.py -p 9000 -u client2
-    python3 client_1.py -p 9000 -u client3
-    python3 client_1.py -p 9000 -u client4
 
 Now, Client1 inputs following three messages:
 

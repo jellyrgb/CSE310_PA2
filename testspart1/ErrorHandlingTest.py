@@ -56,8 +56,10 @@ class ErrorHandlingTest(BasicTest):
         for client in clients_out.keys():
             with open("client_" + client) as f:
                 lines = list(map(lambda x: x.lower(), f.read().split('\n')))
+                print(lines)
                 for each_line in clients_out[client]:
                     if each_line.lower() not in lines:
+                        print("Failed line: ", each_line.lower())
                         print("Test Failed: Client output is not correct")
                         return False
 

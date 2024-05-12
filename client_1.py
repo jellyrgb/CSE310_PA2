@@ -37,13 +37,13 @@ class Client:
         Use make_message() and make_util() functions from util.py to make your first join packet
         Waits for userinput and then process it
         '''
-        # Send initial join message
-        msg = util.make_message("join", 1, self.name)
-        join_msg = util.make_packet(msg_type="join", msg=msg)
 
+        # Initial join message
+        msg = util.make_message("join", 1, self.name)
+        join_msg = util.make_packet(msg_type="data", msg=msg)
         self.sock.sendto(join_msg.encode(), (self.server_addr, self.server_port))
 
-        # Main loop to handle user commands
+        # Main loop to handle user inputs
         while True:
             cmd = input()
             if cmd == "quit":
@@ -53,18 +53,18 @@ class Client:
             elif cmd == "list":
                 self.request_list()
             else:
-                print("Unknown command")
+                print("incorrect userinput format")
+                # self.unknown_command()
 
 
     def send_message(self, cmd):
         """
-        Sends a message to other clients through the server.
-        :param cmd: The user input command, expected to be in the format:
-                    "msg <number_of_users> <username1> <username2> … <message>"
+        Handle sending a message to other clients through the server.
         """
         parts = cmd.split(' ', 3)
+
         if len(parts) < 4:
-            print("Incorrect user input format")
+            print("incorrect userinput format")
             return
 
         try:
@@ -72,63 +72,77 @@ class Client:
             recipient_names = parts[2].split(' ')[:num_recipients]
             message = parts[3]
         except ValueError:
-            print("Invalid number of recipients")
+            print("incorrect userinput format")
             return
 
-        # Creating a message format that the server can interpret
+        # Make send_message packet
         msg_body = f"{num_recipients} {' '.join(recipient_names)} {message}"
         msg = util.make_message("send_message", 4, msg_body)
-        packet = util.make_packet(msg_type="send_message", msg=msg)
+        packet = util.make_packet(msg_type="data", msg=msg)
 
-        # Send the formatted message packet to the server
+        # Send send_message packet to the server
         self.sock.sendto(packet.encode(), (self.server_addr, self.server_port))
 
 
     def request_list(self):
         """
-        Sends a request to the server to retrieve a list of all connected users.
+        Handle sending request to retrieve all online users from the server.
         """
-        # Create the message requesting the user list
+        # Make request_users_list packet
         msg = util.make_message("request_users_list", 3, "")
-        packet = util.make_packet(msg_type="request_users_list", msg=msg)
+        packet = util.make_packet(msg_type="data", msg=msg)
 
-        # Send the formatted packet to the server
+        # Send request_users_list packet to the server
         self.sock.sendto(packet.encode(), (self.server_addr, self.server_port))
 
 
     def quit(self):
         """
-        Sends a quit message to the server to properly disconnect and then shuts down the client.
+        Handle quitting the client from the server.
         """
         try:
-            # Create the message to notify the server of disconnection
+            # Make disconnect packet
             msg = util.make_message("disconnect", 1, self.name)
-            packet = util.make_packet(msg_type="disconnect", msg=msg)
+            packet = util.make_packet(msg_type="data", msg=msg)
 
-            # Send the disconnect packet to the server
+            # Send disconnect packet to the server
             self.sock.sendto(packet.encode(), (self.server_addr, self.server_port))
         finally:
-            # Signal the receive_handler to stop and then close the socket
+            # Signal the receive_handler to stop and then close the currnet socket
             self.running = False
             self.sock.close()
             print("quitting")
             sys.exit(0)
+
+    
+    def unknown_command(self):
+        """
+        Handle an unknown command input by the user.
+        """
+        # Make unknown_command packet
+        msg = util.make_message("unknown_command", 2, "")
+        packet = util.make_packet(msg_type="data", msg=msg)
+
+        # Send unknown_command packet to the server
+        self.sock.sendto(packet.encode(), (self.server_addr, self.server_port))
 
 
     def receive_handler(self):
         '''
         Waits for a message from server and process it accordingly
         '''
+        
         while self.running:
             try:
                 data, _ = self.sock.recvfrom(1024)
 
                 if data:
+                    # Process response from server
                     message = data.decode()
-
                     message = message.split('|')
                     new_message = message[2].split(' ')
 
+                    # Handle nomral responses from server
                     if new_message[0] == "response_users_list":
                         user_list = ' '.join(new_message[3:])
                         print("list: " + user_list)
@@ -136,12 +150,30 @@ class Client:
                     elif new_message[0] == "forward_message":
                         msg = ' '.join(new_message[4:])
                         print("msg: " + new_message[3] + ": " + msg)
-
+                    
+                    # Handle error messages
+                    elif new_message[0] == "ERR_USERNAME_UNAVAILABLE":
+                        print("disconnected: username not available")
+                        self.running = False
+                        self.sock.close()
+                        sys.exit(0)
+                    
+                    elif new_message[0] == "ERR_SERVER_FULL":
+                        print("disconnected: server full")
+                        self.running = False
+                        self.sock.close()
+                        sys.exit(0)
+                    
+                    elif new_message[0] == "ERR_UNKNOWN_MESSAGE":
+                        print("disconnected: server received an unknown command")
+                        self.running = False
+                        self.sock.close()
+                        sys.exit(0)
+ 
             except socket.error as e:
-                if self.running:  # Only show errors if we're still supposed to be running
-                    print(f"Socket error: {e}")
+                if self.running:
+                    print(f"socket error: {e}")
                 break
-        
 
 
 # Do not change below part of code

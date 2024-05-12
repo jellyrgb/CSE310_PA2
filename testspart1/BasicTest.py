@@ -21,6 +21,8 @@ class BasicTest(object):
     def handle_packet(self):
         for p,user in self.forwarder.in_queue:
             msg_type,a,b,c = util.parse_packet(p.full_packet.decode())
+            if msg_type not in self.packets_processed: #added this
+                self.packets_processed[msg_type] = 0   #added this
             self.packets_processed[msg_type] += 1
             self.forwarder.out_queue.append((p,user))
         self.forwarder.in_queue = []
@@ -79,8 +81,8 @@ class BasicTest(object):
                 for i in range(int(msg[1])):
                     clients_out[msg[i + 2]].append("msg: %s: %s" % (client, " ".join(msg[2 + int(msg[1]):])) )
                     num_of_packets += 1
-        
-        
+
+
         # Checking Clients Output
         for client in clients_out.keys():
             with open("client_"+client) as f:
